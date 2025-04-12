@@ -1,0 +1,63 @@
+# Définition des services (conteneurs) de l'application
+services:
+  # Frontend service
+  frontend:
+    build: frontend  # Build the Dockerfile in the 'frontend' directory (Streamlit app) 
+    ports:
+      - 8501:8501  # Expose port 8501 for Streamlit (default port for Streamlit apps)
+    networks:
+      AIservice:  # Connect to the 'AIservice' network
+        aliases:
+          - frontend.docker  # Alias for the frontend service
+    depends_on:
+      - backend  # Ensure that the backend service is started before the frontend
+    volumes:
+      - ./frontend:/app  # Bind mount the frontend code into the container
+      - ./storage:/storage  # Bind mount the storage directory for persistent data
+
+  # Backend service
+  backend:
+    build: backend  # Build the Dockerfile in the 'backend' directory  (FastAPI app) 
+    ports:
+      - 8000:8000  # Expose port 8000 for the backend service
+    networks:
+      AIservice:  # Connect to the 'AIservice' network
+        aliases:
+          - backend.docker  # Alias for the backend service
+    volumes:
+      - ./backend:/app  # Bind mount the backend code into the container
+      - ./storage:/storage  # Bind mount the storage directory for persistent data
+
+  # Orion Context Broker service (FIWARE)
+  orion:
+    image: fiware/orion-ld  # Use the FIWARE Orion LD Docker image
+    platform: linux/amd64  # 🔥 clé ici pour architecture Apple Silicon
+    hostname: orion  # Set the hostname for the container
+    container_name: fiware-orion  # Name the container 'fiware-orion'
+    networks:
+      AIservice:  # Connect to the 'AIservice' network
+        aliases:
+          - orion.docker  # Alias for the Orion Context Broker service
+    expose:
+      - "1026"  # Expose port 1026 internally (Orion Context Broker default)
+    ports:
+      - "1027:1026"  # Expose port 1027 on the host machine, forwarding to port 1026 in the container
+    depends_on:
+      - mongo-db  # Ensure the MongoDB service is running before Orion
+    command: -dbhost mongo-db -logLevel DEBUG  # Set MongoDB as the database host for Orion with DEBUG log level
+
+  # MongoDB service
+  mongo-db:
+    image: mongo:3.6  # Use the MongoDB 3.6 Docker image
+    hostname: mongo-db  # Set the hostname for the container
+    container_name: db-mongo  # Name the container 'db-mongo'
+    networks:
+      AIservice:  # Connect to the 'AIservice' network
+        aliases:
+          - mongo.docker  # Alias for the MongoDB service
+    command: --nojournal  # Disable journaling to optimize for read-heavy workloads
+
+# Network configuration
+networks:
+  AIservice:
+    external: true  # Use an external network called 'AIservice'
